@@ -22,6 +22,27 @@ Once you've configured a global hotkey, there are **two recording modes**:
 1. **Press-and-hold** the hotkey to begin recording, say whatever you want, and then release the hotkey to start the transcription process. 
 2. **Double-tap** the hotkey to *lock recording*, say whatever you want, and then **tap** the hotkey once more to start the transcription process.
 
+## CLI
+
+Hex also ships with a standalone local transcription CLI:
+
+```bash
+swift run --package-path HexCore hex-cli
+```
+
+Use `--model <id>` to force a specific model and `--output <path>` to write the transcript to disk in addition to stdout. Recording stops on Enter or `Ctrl+C`, and both paths continue through transcription. The CLI loads Parakeet in CPU-only mode by default to avoid noisy CoreML runtime warnings in terminal sessions.
+
+To build a release binary:
+
+```bash
+swift build --package-path HexCore -c release --product hex-cli
+swift build --package-path HexCore -c release --show-bin-path
+```
+
+That prints the directory containing the compiled `hex-cli` binary.
+
+If you want it on your `PATH`, copy or symlink that binary into a directory like `~/.local/bin` yourself.
+
 ## Contributing
 
 **Issue reports are welcome!** If you encounter bugs or have feature requests, please [open an issue](https://github.com/kitlangton/Hex/issues).
