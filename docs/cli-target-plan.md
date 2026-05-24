@@ -2,7 +2,7 @@
 
 ## Goal
 
-Ship a standalone `hex-cli` executable that records from the default microphone, transcribes locally with Parakeet or WhisperKit, and prints the result to stdout or writes it to a file
+Ship a standalone `hex-cli` executable that records from a selectable microphone, transcribes locally with Parakeet or WhisperKit, and prints the result to stdout or writes it to a file
 
 ## Status
 
@@ -14,6 +14,7 @@ This document now describes the final architecture that shipped, not the earlier
 
 - `hex-cli` is a SwiftPM executable product in `HexCore/Package.swift`
 - shared model download, load, and transcription logic lives in `HexCore` as `HexTranscriptionEngine`
+- shared Core Audio microphone discovery and persisted settings also live in `HexCore`, so the CLI and app use the same device identifiers and `selectedMicrophoneID` storage
 - the GUI app keeps its `TranscriptionClient` API, but now delegates to the shared engine
 - the CLI uses a thin `AVAudioRecorder` wrapper and does not depend on TCA, SwiftUI, or AppKit
 - the CLI can be run from source with `swift run --package-path HexCore hex-cli`
@@ -57,19 +58,29 @@ This is the key architectural difference from the original draft
 - 32-bit float PCM
 - WAV output in a temporary file
 
+The CLI still relies on the same Core Audio device identifiers and `selectedMicrophoneID` preference as the app. That keeps microphone selection behavior aligned without pulling the entire app recording stack into the package executable.
+
 ### Share model cache locations with the app
 
 WhisperKit models still live under `URL.hexModelsDirectory`
 
 Parakeet still relies on `XDG_CACHE_HOME`, so the CLI sets that before loading models so it can reuse the same cache root as the app
 
+### Reuse the app microphone preference
+
+The app already persists microphone overrides via `HexSettings.selectedMicrophoneID`. The CLI now reads and writes that same setting and uses the same Core Audio device IDs as the settings picker.
+
+At startup, when multiple live input devices are available, the CLI prompts the user to choose a microphone. The current saved preference is preselected, and explicit one-off runs can skip the prompt with `--device`.
+
 ### Keep the interaction simple for v1
 
 The CLI interaction model is still the one proposed originally:
 
 - optional `--model` to choose a model explicitly
+- optional `--device` to force a specific input device for the current run
 - optional `--output` to write the transcript to disk
 - otherwise auto-detect a downloaded model or prompt the user to pick one
+- when multiple microphones are connected, prompt the user to choose one and persist the choice to `selectedMicrophoneID`
 - press Enter or `Ctrl+C` to stop recording
 
 ## Final File Layout
@@ -80,10 +91,15 @@ HexCore/
   Sources/
     HexCLI/
       HexCLI.swift
+      CLIMicrophoneSelector.swift
       CLIRecorder.swift
       CLIStopMonitor.swift
       CLITranscriber.swift
     HexCore/
+      Models/
+        AudioInputDeviceCatalog.swift
+      Settings/
+        HexSettingsStore.swift
       Transcription/
         HexTranscriptionEngine.swift
 
@@ -111,10 +127,11 @@ Microphone access is requested through the terminal app's normal TCC flow, so Te
 1. configure cache paths
 2. resolve the model from flags, existing downloads, or the interactive picker
 3. request microphone permission
-4. load or download the model
-5. record until Enter or `Ctrl+C`
-6. transcribe locally
-7. print to stdout and optionally write to a file
+4. resolve the microphone from `--device`, the saved `selectedMicrophoneID`, or the startup picker when multiple devices are connected
+5. load or download the model
+6. record until Enter or `Ctrl+C`
+7. transcribe locally
+8. print to stdout and optionally write to a file
 
 ## Local Usage
 
@@ -129,6 +146,7 @@ Examples:
 ```bash
 swift run --package-path HexCore hex-cli --help
 swift run --package-path HexCore hex-cli --model parakeet-tdt-0.6b-v3-coreml
+swift run --package-path HexCore hex-cli --device "AirPods Pro"
 swift run --package-path HexCore hex-cli --model openai_whisper-tiny --output transcript.txt
 ```
 
@@ -174,6 +192,5 @@ Those steps are no longer needed because the CLI now ships from the package and 
 
 These are nice-to-have improvements, not blockers for the current CLI:
 
-- explicit microphone selection via `--device`
 - richer argument parsing if the command surface grows
 - broader distribution beyond local source builds and local install

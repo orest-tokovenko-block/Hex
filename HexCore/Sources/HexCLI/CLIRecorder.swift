@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import HexCore
 
 final class CLIRecorder: NSObject, @unchecked Sendable {
   private var recorder: AVAudioRecorder?
@@ -7,7 +8,11 @@ final class CLIRecorder: NSObject, @unchecked Sendable {
   private let recordingURL = FileManager.default.temporaryDirectory
     .appendingPathComponent("hex-cli-recording-\(UUID().uuidString).wav")
 
-  func prepare() throws -> URL {
+  func prepare(inputDeviceID: String?) throws -> URL {
+    if let inputDeviceID {
+      try AudioInputDeviceCatalog.setDefaultInputDevice(id: inputDeviceID)
+    }
+
     let settings: [String: Any] = [
       AVFormatIDKey: Int(kAudioFormatLinearPCM),
       AVSampleRateKey: 16_000.0,

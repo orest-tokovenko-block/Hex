@@ -26,11 +26,16 @@ struct HexCLI {
         fail("Microphone permission denied. Grant access to your terminal in System Settings -> Privacy & Security -> Microphone")
       }
 
+      let microphoneSelection = try CLIMicrophoneSelector().resolveSelection(
+        requestedDevice: flagValue("--device") ?? flagValue("-d")
+      )
+      fputs("Using microphone: \(microphoneSelection.displayName)\n", stderr)
+
       let transcriber = CLITranscriber()
       try await transcriber.loadModel(modelID)
 
       let recorder = CLIRecorder()
-      let audioURL = try recorder.prepare()
+      let audioURL = try recorder.prepare(inputDeviceID: microphoneSelection.inputDeviceID)
       let outputPath = flagValue("--output") ?? flagValue("-o")
 
       fputs("Recording... press Enter or Ctrl+C to stop\n", stderr)
@@ -72,6 +77,10 @@ struct HexCLI {
         fputs("Found model: \(model.name)\n", stderr)
         return model.id
       }
+    }
+
+    guard cliInputIsInteractive() else {
+      throw CLIUsageError.noDownloadedModelInNonInteractiveSession
     }
 
     fputs("\nNo model found. Choose one to download:\n\n", stderr)
@@ -122,12 +131,15 @@ struct HexCLI {
 
   private static func printUsage() {
     let usage = """
-    Usage: hex-cli [--model MODEL_ID] [--output PATH]
+    Usage: hex-cli [--model MODEL_ID] [--device NAME_OR_ID] [--output PATH]
 
-    Record audio from the default microphone until you press Enter or Ctrl+C, then transcribe it locally.
+    Record audio from a selected microphone until you press Enter or Ctrl+C, then transcribe it locally.
+
+    When multiple input devices are available, the CLI prompts you to choose one at startup and remembers the same microphone preference Hex uses in the app.
 
     Options:
       -m, --model   Use a specific model identifier
+      -d, --device  Use a specific input device name or ID, or `default`
       -o, --output  Write the transcript to a file as well as stdout
       -h, --help    Show this help text
     """
@@ -142,11 +154,14 @@ struct HexCLI {
 
 private enum CLIUsageError: LocalizedError {
   case invalidModelChoice
+  case noDownloadedModelInNonInteractiveSession
 
   var errorDescription: String? {
     switch self {
     case .invalidModelChoice:
       return "Invalid model choice"
+    case .noDownloadedModelInNonInteractiveSession:
+      return "No downloaded model found. Re-run interactively to choose one or pass --model MODEL_ID"
     }
   }
 }

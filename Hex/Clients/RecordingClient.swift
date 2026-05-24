@@ -18,12 +18,6 @@ private let recordingLogger = HexLog.recording
 private let mediaLogger = HexLog.media
 private typealias CoreAudioPropertyListenerBlock = @convention(block) (UInt32, UnsafePointer<AudioObjectPropertyAddress>) -> Void
 
-/// Represents an audio input device
-struct AudioInputDevice: Identifiable, Equatable {
-  var id: String
-  var name: String
-}
-
 @DependencyClient
 struct RecordingClient {
   var startRecording: @Sendable () async -> Void = {}
@@ -368,57 +362,14 @@ actor RecordingClientLive {
   /// Tracks previous system volume when muted for recording
   private var previousVolume: Float?
 
-  // Cache to store already-processed device information
-  private var deviceCache: [AudioDeviceID: (hasInput: Bool, name: String?)] = [:]
-  private var lastDeviceCheck = Date(timeIntervalSince1970: 0)
-  
   /// Gets all available input devices on the system
   func getAvailableInputDevices() async -> [AudioInputDevice] {
-    // Reset cache if it's been more than 5 minutes since last full refresh
-    let now = Date()
-    if now.timeIntervalSince(lastDeviceCheck) > 300 {
-      deviceCache.removeAll()
-      lastDeviceCheck = now
-    }
-    
-    // Get all available audio devices
-    let devices = getAllAudioDevices()
-    var inputDevices: [AudioInputDevice] = []
-    
-    // Filter to only input devices and convert to our model
-    for device in devices {
-      let hasInput: Bool
-      let name: String?
-      
-      // Check cache first to avoid expensive Core Audio calls
-      if let cached = deviceCache[device] {
-        hasInput = cached.hasInput
-        name = cached.name
-      } else {
-        hasInput = deviceHasInput(deviceID: device)
-        name = hasInput ? getDeviceName(deviceID: device) : nil
-        deviceCache[device] = (hasInput, name)
-      }
-      
-      if hasInput, let deviceName = name {
-        inputDevices.append(AudioInputDevice(id: String(device), name: deviceName))
-      }
-    }
-    
-    return inputDevices
+    AudioInputDeviceCatalog.availableInputDevices()
   }
 
   /// Gets the current system default input device name
   func getDefaultInputDeviceName() async -> String? {
-    guard let deviceID = getDefaultInputDevice() else { return nil }
-    if let cached = deviceCache[deviceID], cached.hasInput, let name = cached.name {
-      return name
-    }
-    let name = getDeviceName(deviceID: deviceID)
-    if let name {
-      deviceCache[deviceID] = (hasInput: true, name: name)
-    }
-    return name
+    AudioInputDeviceCatalog.defaultInputDeviceName()
   }
   
   // MARK: - Core Audio Helpers

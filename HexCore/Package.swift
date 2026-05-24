@@ -28,7 +28,8 @@ let package = Package(
 	        ],
 	        path: "Sources/HexCore",
 	        linkerSettings: [
-	            .linkedFramework("IOKit")
+	            .linkedFramework("IOKit"),
+	            .linkedFramework("CoreAudio")
 	        ]
 	    ),
 	    .executableTarget(

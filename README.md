@@ -32,6 +32,8 @@ swift run --package-path HexCore hex-cli
 
 Use `--model <id>` to force a specific model and `--output <path>` to write the transcript to disk in addition to stdout. Recording stops on Enter or `Ctrl+C`, and both paths continue through transcription. The CLI loads Parakeet in CPU-only mode by default to avoid noisy CoreML runtime warnings in terminal sessions.
 
+When multiple microphones are available, `hex-cli` prompts you to choose one at startup and remembers the same `selectedMicrophoneID` preference Hex uses in the app. You can skip the prompt for one-off runs with `--device <name-or-id>` or `--device default`.
+
 To build a release binary:
 
 ```bash
