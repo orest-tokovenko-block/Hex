@@ -22,26 +22,17 @@ actor ParakeetClient {
     }
     if currentVariant == variant, asr != nil { return true }
 
-    logger.debug("Checking Parakeet availability variant=\(variant.identifier)")
-    for dir in modelDirectories(variant) {
-      if directoryContainsMLModelC(dir) {
-        logger.notice("Found Parakeet cache at \(dir.path)")
-        return true
-      }
+    let directory = AsrModels.defaultCacheDirectory(for: variant.asrVersion)
+    let available = AsrModels.modelsExist(
+      at: directory,
+      version: variant.asrVersion
+    )
+    if available {
+      logger.notice("Found Parakeet cache at \(directory.path)")
+    } else {
+      logger.debug("No Parakeet cache detected variant=\(variant.identifier) path=\(directory.path)")
     }
-    logger.debug("No Parakeet cache detected variant=\(variant.identifier)")
-    return false
-  }
-
-  private func directoryContainsMLModelC(_ dir: URL) -> Bool {
-    let fm = FileManager.default
-    guard fm.fileExists(atPath: dir.path) else { return false }
-    if let en = fm.enumerator(at: dir, includingPropertiesForKeys: nil) {
-      for case let url as URL in en {
-        if url.pathExtension == "mlmodelc" || url.lastPathComponent.hasSuffix(".mlmodelc") { return true }
-      }
-    }
-    return false
+    return available
   }
 
   func ensureLoaded(modelName: String, progress: @escaping (Progress) -> Void) async throws {
@@ -84,8 +75,7 @@ actor ParakeetClient {
     // Download + load the requested variant (returns when all assets are present)
     let models = try await AsrModels.downloadAndLoad(version: variant.asrVersion)
     self.models = models
-    let manager = AsrManager(config: .init())
-    try await manager.initialize(models: models)
+    let manager = AsrManager(config: .init(), models: models)
     self.asr = manager
     self.currentVariant = variant
     p.completedUnitCount = 100
@@ -109,7 +99,8 @@ actor ParakeetClient {
     guard let asr else { throw NSError(domain: "Parakeet", code: -1, userInfo: [NSLocalizedDescriptionKey: "Parakeet not initialized"]) }
     let t0 = Date()
     logger.notice("Transcribing with Parakeet file=\(url.lastPathComponent)")
-    let result = try await asr.transcribe(url)
+    var decoderState = TdtDecoderState.make(decoderLayers: await asr.decoderLayerCount)
+    let result = try await asr.transcribe(url, decoderState: &decoderState)
     logger.info("Parakeet transcription finished in \(String(format: "%.2f", Date().timeIntervalSince(t0)))s")
     return result.text
   }
@@ -141,7 +132,7 @@ actor ParakeetClient {
   /// Includes both exact matches and prefixed directories (e.g. versioned folders).
   private func modelDirectories(_ variant: ParakeetModel) -> [URL] {
     let fm = FileManager.default
-    var result: [URL] = []
+    var result: [URL] = [AsrModels.defaultCacheDirectory(for: variant.asrVersion)]
 
     for root in candidateRoots() {
       for vendor in vendorDirs {
@@ -157,7 +148,8 @@ actor ParakeetClient {
         }
       }
     }
-    return result
+    var seen = Set<String>()
+    return result.filter { seen.insert($0.standardizedFileURL.path).inserted }
   }
 
   private func candidateRoots() -> [URL] {

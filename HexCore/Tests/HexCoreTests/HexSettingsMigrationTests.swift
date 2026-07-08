@@ -16,7 +16,7 @@ final class HexSettingsMigrationTests: XCTestCase {
 		XCTAssertEqual(decoded.preventSystemSleep, true)
 		XCTAssertEqual(decoded.minimumKeyTime, 0.25)
 		XCTAssertEqual(decoded.copyToClipboard, true)
-		XCTAssertFalse(decoded.superFastModeEnabled)
+		XCTAssertTrue(decoded.superFastModeEnabled)
 		XCTAssertEqual(decoded.useDoubleTapOnly, true)
 		XCTAssertEqual(decoded.doubleTapLockEnabled, true)
 		XCTAssertEqual(decoded.outputLanguage, "en")
@@ -25,6 +25,8 @@ final class HexSettingsMigrationTests: XCTestCase {
 		XCTAssertEqual(decoded.maxHistoryEntries, 10)
 		XCTAssertEqual(decoded.hasCompletedModelBootstrap, true)
 		XCTAssertEqual(decoded.hasCompletedStorageMigration, true)
+		XCTAssertFalse(decoded.lowercaseTranscripts)
+		XCTAssertFalse(decoded.removePunctuation)
 	}
 
 	func testEncodeDecodeRoundTripPreservesDefaults() throws {

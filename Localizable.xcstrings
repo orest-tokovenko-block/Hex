@@ -4,7 +4,7 @@
     "" : {
       "shouldTranslate" : false
     },
-    "(%@)" : {
+    "·" : {
 
     },
     "%@ %@" : {
@@ -16,6 +16,12 @@
           }
         }
       }
+    },
+    "%@ will be stored locally on this Mac." : {
+
+    },
+    "%lld%%" : {
+
     },
     "•" : {
       "shouldTranslate" : false
@@ -61,10 +67,10 @@
     "Accuracy" : {
 
     },
-    "Add Remapping" : {
+    "Add pattern" : {
 
     },
-    "Add Removal" : {
+    "Add replacement" : {
 
     },
     "Are you sure you want to delete all transcripts? This action cannot be undone." : {
@@ -85,6 +91,9 @@
 
     },
     "Become a Sponsor" : {
+
+    },
+    "Browse Models…" : {
 
     },
     "Cancel" : {
@@ -142,6 +151,9 @@
           }
         }
       }
+    },
+    "Choose a transcription model" : {
+
     },
     "Clear shortcut" : {
 
@@ -206,6 +218,12 @@
         }
       }
     },
+    "Delete removal" : {
+
+    },
+    "Delete replacement" : {
+
+    },
     "Delete Selected Model" : {
       "comment" : "Delete the selected model in settings.",
       "extractionState" : "stale",
@@ -232,11 +250,21 @@
     "Do Nothing" : {
 
     },
-    "Download" : {
+    "Done" : {
+
+    },
+    "Download %@?" : {
+
+    },
+    "Download a local model to start transcribing." : {
+
+    },
+    "Download and Use" : {
 
     },
     "Download Error: %@" : {
       "comment" : "Model download error.",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -258,9 +286,6 @@
         }
       }
     },
-    "Downloaded" : {
-
-    },
     "Downloading %@..." : {
       "comment" : "In Transcription Model section in settings.",
       "extractionState" : "stale",
@@ -273,7 +298,7 @@
         }
       }
     },
-    "Downloading… %lld%%" : {
+    "Enable %@" : {
 
     },
     "Enable double-tap lock" : {
@@ -282,7 +307,7 @@
     "Enable in Settings" : {
 
     },
-    "Enable Word Removals" : {
+    "Enabled" : {
 
     },
     "Ensure Hex can access your microphone and system accessibility features." : {
@@ -380,6 +405,9 @@
         }
       }
     },
+    "Input" : {
+
+    },
     "Input Device" : {
 
     },
@@ -387,6 +415,12 @@
 
     },
     "Keep the microphone warm and prepend a short in-memory buffer for near-instant capture. macOS will keep showing the microphone indicator while this mode is armed." : {
+
+    },
+    "Loading model choices…" : {
+
+    },
+    "Lowercase output" : {
 
     },
     "Match" : {
@@ -410,10 +444,19 @@
     "Microphone Selection" : {
 
     },
+    "Model choices couldn’t be loaded." : {
+
+    },
+    "Model Error: %@" : {
+
+    },
+    "Model Library" : {
+
+    },
     "Model prewarming..." : {
 
     },
-    "Modification Type" : {
+    "Models run locally on your Mac. Downloads are stored on this device." : {
 
     },
     "Modifier side" : {
@@ -467,6 +510,12 @@
           }
         }
       }
+    },
+    "Output" : {
+
+    },
+    "Output formatting" : {
+
     },
     "Output Language" : {
       "comment" : "transcription model setting for which language to use for text output.",
@@ -539,7 +588,7 @@
     "Preview" : {
 
     },
-    "Quit" : {
+    "Quit Hex" : {
 
     },
     "Refresh available input devices" : {
@@ -548,16 +597,16 @@
     "Regex Pattern" : {
 
     },
-    "Remove filler words using case-insensitive regex patterns." : {
+    "Remove matching words from every transcript." : {
 
     },
-    "Remove or replace words in every transcript. Removals use regex patterns and match whole words." : {
+    "Remove punctuation" : {
 
     },
     "Replace" : {
 
     },
-    "Replace specific words in every transcript. Matches whole words, case-insensitive, in order." : {
+    "Replace matching words in every transcript." : {
 
     },
     "Request Permission" : {
@@ -572,16 +621,19 @@
         }
       }
     },
+    "Retry" : {
+
+    },
+    "Rule type" : {
+
+    },
     "Save Transcription History" : {
 
     },
     "Save transcriptions and audio recordings for later access" : {
 
     },
-    "Say something…" : {
-
-    },
-    "Scratchpad" : {
+    "Select an installed model to use it, or download another model for local transcription." : {
 
     },
     "Selected device not connected. System default will be used." : {
@@ -612,6 +664,7 @@
     },
     "Settings..." : {
       "comment" : "button in top bar for opening settings",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -620,6 +673,9 @@
           }
         }
       }
+    },
+    "Settings…" : {
+
     },
     "Show Changelog" : {
       "localizations" : {
@@ -643,12 +699,6 @@
       }
     },
     "Show in Finder" : {
-
-    },
-    "Show less" : {
-
-    },
-    "Show more" : {
 
     },
     "Sound" : {
@@ -687,13 +737,13 @@
         }
       }
     },
+    "Suggested" : {
+
+    },
     "Super Fast Mode" : {
 
     },
     "Support the developer" : {
-
-    },
-    "Transcript Modifications" : {
 
     },
     "Transcription history is currently disabled." : {
@@ -711,6 +761,12 @@
       }
     },
     "Transforms" : {
+
+    },
+    "Type or speak a sample…" : {
+
+    },
+    "Unavailable Device" : {
 
     },
     "Unlimited" : {
@@ -755,6 +811,9 @@
         }
       }
     },
+    "View All Models…" : {
+
+    },
     "Visit our GitHub" : {
       "comment" : "button text to link to github",
       "localizations" : {
@@ -772,10 +831,7 @@
     "When disabled, transcriptions will not be saved and audio files will be deleted immediately after transcription." : {
 
     },
-    "Word Remappings" : {
-
-    },
-    "Word Removals" : {
+    "Word rules" : {
 
     },
     "Your transcription history will appear here." : {

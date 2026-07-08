@@ -42,6 +42,12 @@ class HexAppDelegate: NSObject, NSApplicationDelegate {
 			name: .updateAppMode,
 			object: nil
 		)
+		NotificationCenter.default.addObserver(
+			self,
+			selector: #selector(handlePresentSettingsWindow),
+			name: .presentSettingsWindow,
+			object: nil
+		)
 
 		// Start long-running app effects (global hotkeys, permissions, etc.)
 		startLifecycleTasksIfNeeded()
@@ -102,7 +108,7 @@ class HexAppDelegate: NSObject, NSApplicationDelegate {
 		let transcriptionView = TranscriptionView(store: transcriptionStore).padding().padding(.top).padding(.top)
 			.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 		invisibleWindow = InvisibleWindow.fromView(transcriptionView)
-		invisibleWindow?.makeKeyAndOrderFront(nil)
+		invisibleWindow?.orderFrontRegardless()
 	}
 
 	func presentSettingsView() {
@@ -115,13 +121,15 @@ class HexAppDelegate: NSObject, NSApplicationDelegate {
 		let settingsView = AppView(store: HexApp.appStore)
 		let settingsWindow = NSWindow(
 			contentRect: .init(x: 0, y: 0, width: 700, height: 700),
-			styleMask: [.titled, .fullSizeContentView, .closable, .miniaturizable],
+			styleMask: [.titled, .fullSizeContentView, .closable, .miniaturizable, .resizable],
 			backing: .buffered,
 			defer: false
 		)
 		settingsWindow.titleVisibility = .visible
 		settingsWindow.contentView = NSHostingView(rootView: settingsView)
 		settingsWindow.isReleasedWhenClosed = false
+		settingsWindow.minSize = .init(width: 620, height: 560)
+		settingsWindow.setFrameAutosaveName("Settings")
 		settingsWindow.center()
 		settingsWindow.toolbarStyle = NSWindow.ToolbarStyle.unified
 		settingsWindow.makeKeyAndOrderFront(nil)
@@ -133,6 +141,10 @@ class HexAppDelegate: NSObject, NSApplicationDelegate {
 		Task {
 			await updateAppMode()
 		}
+	}
+
+	@objc private func handlePresentSettingsWindow() {
+		presentSettingsView()
 	}
 
 	@MainActor

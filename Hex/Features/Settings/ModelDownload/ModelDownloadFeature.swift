@@ -121,11 +121,10 @@ public struct ModelDownloadFeature {
 
 		// Remote data
 		public var availableModels: IdentifiedArrayOf<ModelInfo> = []
-		public var curatedModels: IdentifiedArrayOf<CuratedModelInfo> = []
+		public var curatedModels = IdentifiedArrayOf(uniqueElements: CuratedModelLoader.load())
 		public var recommendedModel: String = ""
 
 		// UI state
-		public var showAllModels = false
 		public var isLoadingModels = false
 		public var isDownloading = false
 		public var downloadProgress: Double = 0
@@ -137,6 +136,25 @@ public struct ModelDownloadFeature {
 
 		// Convenience computed vars
 		var selectedModel: String { hexSettings.selectedModel }
+		var selectedModelNameForDisplay: String? {
+			guard !selectedModel.isEmpty else { return nil }
+			if let downloaded = availableModels.first(where: {
+				$0.isDownloaded
+					&& (ModelPatternMatcher.matches($0.name, selectedModel)
+						|| ModelPatternMatcher.matches(selectedModel, $0.name))
+			}) {
+				return downloaded.name
+			}
+			if modelBootstrapState.isModelReady,
+			   let identifier = modelBootstrapState.modelIdentifier,
+			   ModelPatternMatcher.matches(identifier, selectedModel)
+				|| ModelPatternMatcher.matches(selectedModel, identifier)
+			{
+				return selectedModel
+			}
+			return hexSettings.hasCompletedModelBootstrap ? selectedModel : nil
+		}
+
 		var selectedModelIsDownloaded: Bool {
 			availableModels[id: selectedModel]?.isDownloaded ?? false
 		}
@@ -153,16 +171,18 @@ public struct ModelDownloadFeature {
 		// Requests
 		case fetchModels
 		case selectModel(String)
-		case toggleModelDisplay
-		case downloadSelectedModel
+		case downloadModel(String)
 		// Effects
 		case modelsLoaded(recommended: String, available: [ModelInfo])
-		case downloadProgress(Double)
-		case downloadCompleted(Result<String, Error>)
+		case modelsLoadFailed
+		case downloadProgress(id: UUID, progress: Double)
+		case downloadCompleted(id: UUID, result: Result<String, Error>)
 		case cancelDownload
 
-		case deleteSelectedModel
-		case openModelLocation
+		case deleteModel(String)
+		case modelDeleted(String)
+		case modelDeletionFailed(Error)
+		case openModelLocation(String)
 	}
 
 	// MARK: Dependencies
@@ -196,7 +216,16 @@ public struct ModelDownloadFeature {
 
 	private func updateBootstrapState(_ state: inout State) {
 		let model = state.hexSettings.selectedModel
-		guard !model.isEmpty else { return }
+		guard !model.isEmpty else {
+			state.$modelBootstrapState.withLock { bootstrap in
+				bootstrap.modelIdentifier = ""
+				bootstrap.modelDisplayName = ""
+				bootstrap.isModelReady = false
+				bootstrap.progress = 0
+				bootstrap.lastError = nil
+			}
+			return
+		}
 		let displayName = curatedDisplayName(for: model, curated: state.curatedModels)
 		state.$modelBootstrapState.withLock { bootstrap in
 			bootstrap.modelIdentifier = model
@@ -214,10 +243,6 @@ public struct ModelDownloadFeature {
 		// MARK: – UI bindings
 
 		case .binding:
-			return .none
-
-		case .toggleModelDisplay:
-			state.showAllModels.toggle()
 			return .none
 
 		case let .selectModel(model):
@@ -253,9 +278,13 @@ public struct ModelDownloadFeature {
 					}
 					await send(.modelsLoaded(recommended: recommended, available: infos))
 				} catch {
-					await send(.modelsLoaded(recommended: "", available: []))
+					await send(.modelsLoadFailed)
 				}
 			}
+
+		case .modelsLoadFailed:
+			state.isLoadingModels = false
+			return .none
 
 		case let .modelsLoaded(recommended, available):
 			state.isLoadingModels = false
@@ -292,6 +321,14 @@ public struct ModelDownloadFeature {
 				}
 			}
 			state.curatedModels = IdentifiedArrayOf(uniqueElements: curated)
+			if !state.selectedModelIsDownloaded,
+			   let installedModel = state.curatedModels.first(where: \.isDownloaded)
+			{
+				let fallback = resolvePattern(installedModel.internalName, from: Array(state.availableModels)) ?? installedModel.internalName
+				state.$hexSettings.withLock { $0.selectedModel = fallback }
+			} else if !state.anyModelDownloaded, state.hexSettings.hasCompletedModelBootstrap {
+				state.$hexSettings.withLock { $0.selectedModel = "" }
+			}
 			updateBootstrapState(&state)
 			if !state.anyModelDownloaded && !state.hexSettings.hasCompletedModelBootstrap {
 				let preferred = state.recommendedModel.isEmpty ? state.hexSettings.selectedModel : state.recommendedModel
@@ -304,46 +341,55 @@ public struct ModelDownloadFeature {
 
 		// MARK: – Download
 
-		case .downloadSelectedModel:
-			guard !state.hexSettings.selectedModel.isEmpty else { return .none }
+		case let .downloadModel(model):
+			guard !model.isEmpty, !state.isDownloading else { return .none }
 			state.downloadError = nil
 			state.isDownloading = true
-			let selected = state.hexSettings.selectedModel
-			state.downloadingModelName = selected
+			state.downloadProgress = 0
+			state.downloadingModelName = model
 			state.activeDownloadID = UUID()
 			let downloadID = state.activeDownloadID!
-			let displayName = curatedDisplayName(for: selected, curated: state.curatedModels)
-			state.$modelBootstrapState.withLock {
-				$0.modelIdentifier = selected
-				$0.modelDisplayName = displayName
-				$0.isModelReady = false
-				$0.progress = 0
-				$0.lastError = nil
+			if !state.anyModelDownloaded {
+				let displayName = curatedDisplayName(for: model, curated: state.curatedModels)
+				state.$modelBootstrapState.withLock {
+					$0.modelIdentifier = model
+					$0.modelDisplayName = displayName
+					$0.isModelReady = false
+					$0.progress = 0
+					$0.lastError = nil
+				}
 			}
-			return .run { [state] send in
+			return .run { send in
 				do {
-					// Assume downloadModel returns AsyncThrowingStream<Double, Error>
-					try await transcription.downloadModel(state.selectedModel) { progress in
-						Task { await send(.downloadProgress(progress.fractionCompleted)) }
+					try await transcription.downloadModel(model) { progress in
+						let fractionCompleted = progress.fractionCompleted
+						Task {
+							await send(.downloadProgress(id: downloadID, progress: fractionCompleted))
+						}
 					}
-					await send(.downloadCompleted(.success(state.selectedModel)))
+					await send(.downloadCompleted(id: downloadID, result: .success(model)))
+				} catch is CancellationError {
 				} catch {
-					await send(.downloadCompleted(.failure(error)))
+					await send(.downloadCompleted(id: downloadID, result: .failure(error)))
 				}
 			}
 			.cancellable(id: downloadID)
 
-		case let .downloadProgress(progress):
+		case let .downloadProgress(id, progress):
+			guard state.activeDownloadID == id else { return .none }
+			guard state.downloadProgress != progress else { return .none }
 			state.downloadProgress = progress
-			if state.downloadingModelName == state.hexSettings.selectedModel {
+			if !state.modelBootstrapState.isModelReady {
 				state.$modelBootstrapState.withLock { $0.progress = progress }
 			}
 			return .none
 
-		case let .downloadCompleted(result):
+		case let .downloadCompleted(id, result):
+			guard state.activeDownloadID == id else { return .none }
 			state.isDownloading = false
 			state.downloadingModelName = nil
 			state.activeDownloadID = nil
+			state.downloadProgress = 0
 			var failureMessage: String?
 			switch result {
 			case let .success(name):
@@ -352,6 +398,7 @@ public struct ModelDownloadFeature {
 					state.curatedModels[idx].isDownloaded = true
 				}
 				state.$hexSettings.withLock { settings in
+					settings.selectedModel = name
 					settings.hasCompletedModelBootstrap = true
 				}
 				state.downloadError = nil
@@ -389,38 +436,61 @@ public struct ModelDownloadFeature {
 			state.isDownloading = false
 			state.downloadingModelName = nil
 			state.activeDownloadID = nil
-			state.$modelBootstrapState.withLock {
-				$0.progress = 0
-				$0.isModelReady = false
-				$0.lastError = "Download cancelled"
-			}
+			state.downloadProgress = 0
+			state.$modelBootstrapState.withLock { $0.progress = 0 }
+			updateBootstrapState(&state)
 			return .cancel(id: id)
 
-		case .deleteSelectedModel:
-			guard !state.selectedModel.isEmpty else { return .none }
-			state.$modelBootstrapState.withLock { $0.isModelReady = false }
-			return .run { [state] send in
+		case let .deleteModel(model):
+			guard !model.isEmpty else { return .none }
+			let resolved = resolvePattern(model, from: Array(state.availableModels)) ?? model
+			if ModelPatternMatcher.matches(model, state.selectedModel)
+				|| ModelPatternMatcher.matches(state.selectedModel, model)
+			{
+				state.$modelBootstrapState.withLock { $0.isModelReady = false }
+			}
+			return .run { send in
 				do {
-					try await transcription.deleteModel(state.selectedModel)
-					await send(.fetchModels)
+					try await transcription.deleteModel(resolved)
+					await send(.modelDeleted(resolved))
 				} catch {
-					await send(.downloadCompleted(.failure(error)))
+					await send(.modelDeletionFailed(error))
 				}
 			}
 
-		case .openModelLocation:
-			return openModelLocationEffect(for: state)
+		case let .modelDeleted(model):
+			state.availableModels[id: model]?.isDownloaded = false
+			for index in state.curatedModels.indices
+			where ModelPatternMatcher.matches(state.curatedModels[index].internalName, model) {
+				state.curatedModels[index].isDownloaded = false
+			}
+			if ModelPatternMatcher.matches(state.selectedModel, model)
+				|| ModelPatternMatcher.matches(model, state.selectedModel)
+			{
+				let fallback = state.availableModels.first { $0.isDownloaded }?.name ?? ""
+				state.$hexSettings.withLock { $0.selectedModel = fallback }
+				updateBootstrapState(&state)
+			}
+			return .send(.fetchModels)
+
+		case let .modelDeletionFailed(error):
+			state.downloadError = error.localizedDescription
+			updateBootstrapState(&state)
+			return .none
+
+		case let .openModelLocation(model):
+			return openModelLocationEffect(for: model)
 		}
 	}
 
 	// MARK: Helpers
 
-	private func openModelLocationEffect(for state: State) -> Effect<Action> {
+	private func openModelLocationEffect(for model: String) -> Effect<Action> {
 		// Parakeet caches live under FluidAudio's directory, not the WhisperKit
 		// models folder. Route "Show in Finder" to the matching root so users
 		// don't end up staring at an empty WhisperKit folder thinking the
 		// Parakeet download silently failed.
-		let usesParakeetRoot = ParakeetModel(rawValue: state.selectedModel) != nil
+		let usesParakeetRoot = ParakeetModel(rawValue: model) != nil
 		return .run { _ in
 			let base = try usesParakeetRoot
 				? URL.hexParakeetModelsDirectory
@@ -437,7 +507,7 @@ extension ModelDownloadFeature.State {
 
 	private var prefersEnglishParakeet: Bool {
 		guard let language = hexSettings.outputLanguage?.lowercased(), !language.isEmpty else {
-			return false
+			return true
 		}
 		return language.hasPrefix("en")
 	}
