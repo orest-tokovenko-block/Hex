@@ -22,20 +22,32 @@ struct HexCLI {
       configureCachePaths()
 
       let modelID = try await resolveModel()
-      guard await requestMicrophoneAccess() else {
-        fail("Microphone permission denied. Grant access to your terminal in System Settings -> Privacy & Security -> Microphone")
-      }
 
-      let microphoneSelection = try CLIMicrophoneSelector().resolveSelection(
-        requestedDevice: flagValue("--device") ?? flagValue("-d")
-      )
-      fputs("Using microphone: \(microphoneSelection.displayName)\n", stderr)
+      let requestedDevice = hasFlag("--system-audio")
+        ? "system-audio"
+        : (flagValue("--device") ?? flagValue("-d"))
+      let selection = try CLIMicrophoneSelector().resolveSelection(requestedDevice: requestedDevice)
+
+      let recorder: CLIAudioRecorder
+      switch selection.source {
+      case let .microphone(inputDeviceID):
+        guard await requestMicrophoneAccess() else {
+          fail("Microphone permission denied. Grant access to your terminal in System Settings -> Privacy & Security -> Microphone")
+        }
+        fputs("Using microphone: \(selection.displayName)\n", stderr)
+        recorder = CLIRecorder(inputDeviceID: inputDeviceID)
+      case .systemAudio:
+        guard #available(macOS 14.4, *) else {
+          fail("System audio capture requires macOS 14.4 or later")
+        }
+        fputs("Using system audio: \(selection.displayName)\n", stderr)
+        recorder = SystemAudioTapRecorder()
+      }
 
       let transcriber = CLITranscriber()
       try await transcriber.loadModel(modelID)
 
-      let recorder = CLIRecorder()
-      let audioURL = try recorder.prepare(inputDeviceID: microphoneSelection.inputDeviceID)
+      let audioURL = try recorder.prepare()
       let outputPath = flagValue("--output") ?? flagValue("-o")
 
       fputs("Recording... press Enter or Ctrl+C to stop\n", stderr)
@@ -131,17 +143,21 @@ struct HexCLI {
 
   private static func printUsage() {
     let usage = """
-    Usage: hex-cli [--model MODEL_ID] [--device NAME_OR_ID] [--output PATH]
+    Usage: hex-cli [--model MODEL_ID] [--device NAME_OR_ID] [--system-audio] [--output PATH]
 
-    Record audio from a selected microphone until you press Enter or Ctrl+C, then transcribe it locally.
+    Record audio until you press Enter or Ctrl+C, then transcribe it locally.
 
-    When multiple input devices are available, the CLI prompts you to choose one at startup and remembers the same microphone preference Hex uses in the app.
+    Capture from a microphone or, on macOS 14.4+, directly from system audio output
+    (everything you hear, across all apps). When run interactively, the CLI prompts
+    you to choose a source at startup and remembers the microphone preference Hex
+    uses in the app.
 
     Options:
-      -m, --model   Use a specific model identifier
-      -d, --device  Use a specific input device name or ID, or `default`
-      -o, --output  Write the transcript to a file as well as stdout
-      -h, --help    Show this help text
+      -m, --model     Use a specific model identifier
+      -d, --device    Use a specific input device name or ID, `default`, or `system-audio`
+          --system-audio  Capture system audio output instead of a microphone (macOS 14.4+)
+      -o, --output    Write the transcript to a file as well as stdout
+      -h, --help      Show this help text
     """
     print(usage)
   }
