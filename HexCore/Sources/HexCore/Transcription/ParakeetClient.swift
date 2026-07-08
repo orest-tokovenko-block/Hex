@@ -67,8 +67,7 @@ final class ParakeetClient {
     )
     models = downloadedModels
 
-    let manager = AsrManager(config: .init())
-    try await manager.initialize(models: downloadedModels)
+    let manager = AsrManager(config: .init(), models: downloadedModels)
     asr = manager
     currentVariant = variant
 
@@ -84,7 +83,8 @@ final class ParakeetClient {
 
     let startedAt = Date()
     logger.notice("Transcribing with Parakeet file=\(url.lastPathComponent)")
-    let result = try await asr.transcribe(url)
+    var decoderState = TdtDecoderState.make(decoderLayers: await asr.decoderLayerCount)
+    let result = try await asr.transcribe(url, decoderState: &decoderState)
     logger.info("Parakeet transcription finished in \(String(format: "%.2f", Date().timeIntervalSince(startedAt)))s")
     return result.text
   }

@@ -13,7 +13,7 @@ let package = Package(
         .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.11.0"),
         .package(url: "https://github.com/apple/swift-log", from: "1.9.1"),
         .package(url: "https://github.com/argmaxinc/WhisperKit", from: "0.15.0"),
-        .package(url: "https://github.com/FluidInference/FluidAudio", branch: "main"),
+        .package(url: "https://github.com/FluidInference/FluidAudio", exact: "0.15.5"),
     ],
     targets: [
 	    .target(
